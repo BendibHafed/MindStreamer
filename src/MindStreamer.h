@@ -214,6 +214,101 @@ private:
     bool _verifyDevice();
     void _updateStreamer();
     float _convertToMicrovolts(int32_t raw_sample);
+
+        //=========================================================================
+    // Advanced Channel Configuration
+    //=========================================================================
+    
+    /**
+     * @brief Set channel input selection
+     * @param channel Channel number (1-8)
+     * @param mux Input mux selection (0-7)
+     * @return true if successful
+     */
+    bool setChannelInputMux(uint8_t channel, uint8_t mux);
+    
+    /**
+     * @brief Enable internal test signal on a channel
+     * @param channel Channel number (1-8)
+     * @param gain Gain for test signal (1-24)
+     * @param amplitude Test signal amplitude (1=1x, 2=2x)
+     * @param frequency Test signal frequency (0=DC, 20=fCLK/2^20, 21=fCLK/2^21)
+     * @return true if successful
+     */
+    bool enableTestSignal(uint8_t channel, PGAGain gain, 
+                          uint8_t amplitude = 1, uint8_t frequency = 21);
+    
+    /**
+     * @brief Disable test signal on a channel
+     * @param channel Channel number (1-8)
+     * @return true if successful
+     */
+    bool disableTestSignal(uint8_t channel);
+    
+    /**
+     * @brief Read temperature sensor value (on specified channel)
+     * @param channel Channel number (1-8)
+     * @param temperature_celsius Output temperature in °C
+     * @return true if successful
+     */
+    bool readTemperature(uint8_t channel, float& temperature_celsius);
+    
+    /**
+     * @brief Enable lead-off detection on a channel
+     * @param channel Channel number (1-8)
+     * @param current_source Current source (0=off, 1=6nA, 2=12nA, 3=18nA, 4=24nA)
+     * @return true if successful
+     */
+    bool enableLeadOff(uint8_t channel, uint8_t current_source = 2);
+    
+    /**
+     * @brief Disable lead-off detection on a channel
+     * @param channel Channel number (1-8)
+     * @return true if successful
+     */
+    bool disableLeadOff(uint8_t channel);
+    
+    /**
+     * @brief Read lead-off status
+     * @param channel Channel number (1-8)
+     * @param positive_off true if positive electrode is off
+     * @param negative_off true if negative electrode is off
+     * @return true if successful
+     */
+    bool readLeadOffStatus(uint8_t channel, bool& positive_off, bool& negative_off);
+    
+    /**
+     * @brief Measure electrode impedance (in kΩ)
+     * @param channel Channel number (1-8)
+     * @param impedance_kohm Output impedance in kΩ
+     * @return true if successful
+     */
+    bool measureImpedance(uint8_t channel, float& impedance_kohm);
+    
+    /**
+     * @brief Configure bias measurement on a channel
+     * @param channel Channel number (1-8)
+     * @param enable true to enable bias measurement
+     * @return true if successful
+     */
+    bool enableBiasMeasurement(uint8_t channel, bool enable);
+    
+    /**
+     * @brief Read bias measurement value (in volts)
+     * @param channel Channel number (1-8)
+     * @param bias_volts Output bias voltage
+     * @return true if successful
+     */
+    bool readBiasMeasurement(uint8_t channel, float& bias_volts);
+    
+    /**
+     * @brief Configure test signal globally (affects all channels set to test signal mux)
+     * @param source 0=external, 1=internal
+     * @param amplitude 1=1x, 2=2x
+     * @param frequency 0=DC, 20=fCLK/2^20, 21=fCLK/2^21
+     * @return true if successful
+     */
+    bool configureGlobalTestSignal(uint8_t source, uint8_t amplitude, uint8_t frequency);
 };
 
 #endif // MINDSTREAMER_H

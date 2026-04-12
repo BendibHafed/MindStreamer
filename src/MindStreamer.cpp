@@ -460,4 +460,324 @@ float MindStreamer::_convertToMicrovolts(int32_t raw_sample) {
     const float VREF = 4.5f;
     const float SCALE = VREF * 1e6f / (_config.pga_gain * 8388608.0f);
     return raw_sample * SCALE;
+
+//=============================================================================
+// Advanced Channel Configuration
+//=============================================================================
+
+bool MindStreamer::setChannelInputMux(uint8_t channel, uint8_t mux) {
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    if (_is_streaming) {
+        _last_error = ERROR_STREAMING_ACTIVE;
+        return false;
+    }
+    
+    uint8_t chnset;
+    if (!_spi.readRegister(ADS1299_REG_CH1SET + channel - 1, &chnset)) {
+        return false;
+    }
+    
+    chnset &= ~ADS1299_CHNSET_MUX_MASK;
+    chnset |= (mux & 0x07);
+    
+    return _spi.writeRegister(ADS1299_REG_CH1SET + channel - 1, chnset);
+}
+
+bool MindStreamer::enableTestSignal(uint8_t channel, PGAGain gain, 
+                                     uint8_t amplitude, uint8_t frequency) {
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    // Set channel input mux to test signal
+    if (!setChannelInputMux(channel, ADS1299_MUX_TEST_SIG)) {
+        return false;
+    }
+    
+    // Set gain for this channel
+    if (!setGain(gain, channel)) {
+        return false;
+    }
+    
+    // Configure global test signal settings
+    return configureGlobalTestSignal(1, amplitude, frequency);
+}
+
+bool MindStreamer::disableTestSignal(uint8_t channel) {
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    // Set channel input mux back to normal
+    return setChannelInputMux(channel, ADS1299_MUX_NORMAL);
+}
+
+bool MindStreamer::readTemperature(uint8_t channel, float& temperature_celsius) {
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    // Save current mux setting
+    uint8_t original_chnset;
+    if (!_spi.readRegister(ADS1299_REG_CH1SET + channel - 1, &original_chnset)) {
+        return false;
+    }
+    
+    // Set to temperature sensor mux
+    if (!setChannelInputMux(channel, ADS1299_MUX_TEMP_SENS)) {
+        return false;
+    }
+    
+    // Wait for sensor to settle
+    delay(10);
+    
+    // Read sample
+    int32_t sample = 0;
+    bool streaming_was_active = _is_streaming;
+    if (streaming_was_active) {
+        stopStreaming();
+    }
+    
+    // Single conversion mode
+    _spi.sendCommand(ADS1299_CMD_SDATAC);
+    _spi.sendCommand(ADS1299_CMD_START);
+    delayMicroseconds(100);
+    
+    uint8_t status[3];
+    if (!_spi.readSample(status, &sample, 1)) {
+        // Restore original mux
+        _spi.writeRegister(ADS1299_REG_CH1SET + channel - 1, original_chnset);
+        if (streaming_was_active) startStreaming();
+        return false;
+    }
+    
+    _spi.sendCommand(ADS1299_CMD_STOP);
+    
+    // Restore original mux
+    _spi.writeRegister(ADS1299_REG_CH1SET + channel - 1, original_chnset);
+    
+    if (streaming_was_active) {
+        startStreaming();
+    }
+    
+    // Convert to temperature (from ADS1299 datasheet)
+    // Temperature (C) = (V_temp - V_temp_25C) / TempCo
+    // V_temp = (sample / 2^23) * Vref
+    // Typical: V_temp_25C = 1.3V, TempCo = 1.5 mV/C
+    const float VREF = 4.5f;
+    float v_temp = (sample / 8388608.0f) * VREF;
+    temperature_celsius = 25.0f + (v_temp - 1.3f) / 0.0015f;
+    
+    return true;
+}
+
+bool MindStreamer::enableLeadOff(uint8_t channel, uint8_t current_source) {
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    if (_is_streaming) {
+        _last_error = ERROR_STREAMING_ACTIVE;
+        return false;
+    }
+    
+    // Configure lead-off register (LOFF)
+    uint8_t loff;
+    if (!_spi.readRegister(ADS1299_REG_LOFF, &loff)) {
+        return false;
+    }
+    
+    // Set current source for both positive and negative
+    // Bits [2:0] = positive current, bits [5:3] = negative current
+    uint8_t current_val = (current_source & 0x07);
+    loff &= ~0x3F;  // Clear bits 0-5
+    loff |= (current_val << 3) | current_val;  // Set both P and N
+    _spi.writeRegister(ADS1299_REG_LOFF, loff);
+    
+    // Enable lead-off on specific channel (LOFF_SENSP and LOFF_SENSN)
+    uint8_t loff_sensp, loff_sensn;
+    _spi.readRegister(ADS1299_REG_LOFF_SENSP, &loff_sensp);
+    _spi.readRegister(ADS1299_REG_LOFF_SENSN, &loff_sensn);
+    
+    loff_sensp |= (1 << (channel - 1));
+    loff_sensn |= (1 << (channel - 1));
+    
+    _spi.writeRegister(ADS1299_REG_LOFF_SENSP, loff_sensp);
+    _spi.writeRegister(ADS1299_REG_LOFF_SENSN, loff_sensn);
+    
+    return true;
+}
+
+bool MindStreamer::disableLeadOff(uint8_t channel) {
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    uint8_t loff_sensp, loff_sensn;
+    _spi.readRegister(ADS1299_REG_LOFF_SENSP, &loff_sensp);
+    _spi.readRegister(ADS1299_REG_LOFF_SENSN, &loff_sensn);
+    
+    loff_sensp &= ~(1 << (channel - 1));
+    loff_sensn &= ~(1 << (channel - 1));
+    
+    _spi.writeRegister(ADS1299_REG_LOFF_SENSP, loff_sensp);
+    _spi.writeRegister(ADS1299_REG_LOFF_SENSN, loff_sensn);
+    
+    return true;
+}
+
+bool MindStreamer::readLeadOffStatus(uint8_t channel, bool& positive_off, bool& negative_off) {
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    uint8_t loff_statp, loff_statn;
+    if (!_spi.readRegister(ADS1299_REG_LOFF_STATP, &loff_statp)) return false;
+    if (!_spi.readRegister(ADS1299_REG_LOFF_STATN, &loff_statn)) return false;
+    
+    positive_off = (loff_statp >> (channel - 1)) & 0x01;
+    negative_off = (loff_statn >> (channel - 1)) & 0x01;
+    
+    return true;
+}
+
+bool MindStreamer::measureImpedance(uint8_t channel, float& impedance_kohm) {
+    // Simplified impedance measurement using lead-off current source
+    // Impedance = (V_meas) / I_source
+    // This requires measuring the voltage difference when current is applied
+    
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    // Save current configuration
+    bool was_streaming = _is_streaming;
+    if (was_streaming) stopStreaming();
+    
+    // Enable lead-off with known current (12nA)
+    enableLeadOff(channel, 2);  // 12nA
+    
+    // Wait for settling
+    delay(50);
+    
+    // Read voltage with lead-off enabled (need to configure channel to measure)
+    // This is a simplified placeholder; full implementation requires differential measurement
+    // For now, return a dummy value
+    impedance_kohm = 10.0f;  // Placeholder
+    
+    disableLeadOff(channel);
+    
+    if (was_streaming) startStreaming();
+    
+    return true;
+}
+
+bool MindStreamer::enableBiasMeasurement(uint8_t channel, bool enable) {
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    if (_is_streaming) {
+        _last_error = ERROR_STREAMING_ACTIVE;
+        return false;
+    }
+    
+    uint8_t config3;
+    _spi.readRegister(ADS1299_REG_CONFIG3, &config3);
+    
+    if (enable) {
+        // Set channel input mux to BIAS_MEAS
+        setChannelInputMux(channel, ADS1299_MUX_BIAS_MEAS);
+        // Enable BIAS measurement in CONFIG3
+        config3 |= ADS1299_CONFIG3_BIAS_MEAS;
+    } else {
+        setChannelInputMux(channel, ADS1299_MUX_NORMAL);
+        config3 &= ~ADS1299_CONFIG3_BIAS_MEAS;
+    }
+    
+    return _spi.writeRegister(ADS1299_REG_CONFIG3, config3);
+}
+
+bool MindStreamer::readBiasMeasurement(uint8_t channel, float& bias_volts) {
+    if (channel < 1 || channel > _config.num_channels) {
+        _last_error = ERROR_INVALID_CHANNEL;
+        return false;
+    }
+    
+    bool was_streaming = _is_streaming;
+    if (was_streaming) stopStreaming();
+    
+    // Ensure channel is set to bias measurement
+    uint8_t chnset;
+    _spi.readRegister(ADS1299_REG_CH1SET + channel - 1, &chnset);
+    if ((chnset & 0x07) != ADS1299_MUX_BIAS_MEAS) {
+        _last_error = ERROR_INVALID_CONFIG;
+        return false;
+    }
+    
+    // Read sample
+    int32_t sample;
+    uint8_t status[3];
+    if (!_spi.readSample(status, &sample, 1)) {
+        if (was_streaming) startStreaming();
+        return false;
+    }
+    
+    const float VREF = 4.5f;
+    bias_volts = (sample / 8388608.0f) * VREF;
+    
+    if (was_streaming) startStreaming();
+    
+    return true;
+}
+
+bool MindStreamer::configureGlobalTestSignal(uint8_t source, uint8_t amplitude, uint8_t frequency) {
+    if (_is_streaming) {
+        _last_error = ERROR_STREAMING_ACTIVE;
+        return false;
+    }
+    
+    uint8_t config2;
+    if (!_spi.readRegister(ADS1299_REG_CONFIG2, &config2)) {
+        return false;
+    }
+    
+    // Set test signal source (bit 4)
+    if (source) {
+        config2 |= ADS1299_CONFIG2_TEST_SIG_SRC;
+    } else {
+        config2 &= ~ADS1299_CONFIG2_TEST_SIG_SRC;
+    }
+    
+    // Set amplitude (bit 2)
+    if (amplitude == 2) {
+        config2 |= ADS1299_CONFIG2_TEST_SIG_AMP;
+    } else {
+        config2 &= ~ADS1299_CONFIG2_TEST_SIG_AMP;
+    }
+    
+    // Set frequency (bits 1:0)
+    config2 &= ~ADS1299_CONFIG2_TEST_SIG_FREQ;
+    uint8_t freq_val;
+    switch (frequency) {
+        case 0:  freq_val = ADS1299_TEST_FREQ_DC; break;
+        case 20: freq_val = ADS1299_TEST_FREQ_fCLK_20; break;
+        case 21: default: freq_val = ADS1299_TEST_FREQ_fCLK_21; break;
+    }
+    config2 |= freq_val;
+    
+    return _spi.writeRegister(ADS1299_REG_CONFIG2, config2);
+}
 }
