@@ -21,7 +21,7 @@ public:
      * @param cs_pin Chip select pin (default: 15)
      * @param rst_pin Reset pin (default: 13)
      */
-    MindStreamer(int drdy_pin = 16, int cs_pin = 15, int rst_pin = 13);
+    MindStreamer(int drdy_pin = 12, int cs_pin = 15, int rst_pin = 13);
     
     /**
      * @brief Destructor
