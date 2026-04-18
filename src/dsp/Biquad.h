@@ -23,7 +23,6 @@
 #include <cmath>
 #include <cstdint>
 
-namespace MindStreamer {
 namespace DSP {
 
 /**
@@ -119,10 +118,14 @@ public:
     }
     
     /**
-     * @brief Check if filter is stable (|a1| < 1 + a2 and |a2| < 1)
+     * @brief Check second-order IIR stability using Jury stability conditions
      */
     bool isStable() const noexcept {
-        return (std::abs(_a2) < 1.0f) && (std::abs(_a1) < 1.0f + _a2);
+        // Jury stability conditions for:
+        // H(z) = (b0 + b1 z^-1 + b2 z^-2) / (1 + a1 z^-1 + a2 z^-2)
+        return ((1.0f + _a1 + _a2) > 0.0f) &&
+               ((1.0f - _a1 + _a2) > 0.0f) &&
+               ((1.0f - _a2) > 0.0f);
     }
     
     /**
@@ -137,6 +140,5 @@ private:
 };
 
 } // namespace DSP
-} // namespace MindStreamer
 
 #endif // MINDSTREAMER_BIQUAD_H

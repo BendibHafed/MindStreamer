@@ -11,7 +11,6 @@
 #include "Biquad.h"
 #include <vector>
 
-namespace MindStreamer {
 namespace DSP {
 
 /**
@@ -22,7 +21,7 @@ namespace DSP {
 class FilterCascade {
 public:
     FilterCascade() = default;
-    explicit FilterCascade(const std::vector<Biquad>& stages) : _stages(stages) {}
+    explicit FilterCascade(std::vector<Biquad> stages) : _stages(std::move(stages)) {}
     
     void addStage(const Biquad& stage) { _stages.push_back(stage); }
     void addStage(Biquad&& stage) { _stages.push_back(std::move(stage)); }
@@ -70,6 +69,5 @@ private:
 };
 
 } // namespace DSP
-} // namespace MindStreamer
 
 #endif // MINDSTREAMER_FILTER_CASCADE_H

@@ -12,6 +12,13 @@
 #include <stddef.h>
 
 //=============================================================================
+// MindStreamer packet framing
+//=============================================================================
+
+#define MINDSTREAMER_PACKET_HEADER 0xBB
+#define MINDSTREAMER_PACKET_FOOTER 0xEE
+
+//=============================================================================
 // Data Rates (Samples per second)
 //=============================================================================
 
@@ -75,9 +82,9 @@ enum ErrorCode : uint8_t {
 enum LeadOffCurrent : uint8_t {
     LEAD_OFF_OFF   = 0,  // Disabled
     LEAD_OFF_6nA   = 1,  // 6 nA
-    LEAD_OFF_12nA  = 2,  // 12 nA (recommended)
-    LEAD_OFF_18nA  = 3,  // 18 nA
-    LEAD_OFF_24nA  = 4   // 24 nA
+    LEAD_OFF_24nA  = 2,  // 24 nA
+    LEAD_OFF_6uA   = 3,  // 6 uA
+    LEAD_OFF_24uA  = 4   // 24 uA
 };
 
 //=============================================================================
@@ -129,8 +136,11 @@ struct MindStreamerConfig {
     uint8_t test_signal_channel = 1;
     
     // Performance tuning
-    uint32_t spi_clock_hz = 1000000;    // 1 MHz default
+    uint32_t spi_clock_hz = 500000;     // 500 kHz default (stable on current hardware)
     uint16_t drdy_timeout_ms = 100;     // DRDY timeout in ms
+
+    // ADC reference configuration
+    bool use_internal_reference = true;   // default: enable ADS1299 internal VREF buffer
 };
 
 //=============================================================================
@@ -138,11 +148,11 @@ struct MindStreamerConfig {
 //=============================================================================
 
 struct MindStreamerStats {
-    uint32_t total_samples;      // Total samples acquired since last reset
-    uint32_t dropped_samples;    // Samples dropped due to buffer overflow
-    uint32_t last_sample_time_ms;// Timestamp of last sample (milliseconds)
-    float actual_sps;            // Actual achieved sampling rate
-    ErrorCode last_error;        // Last error encountered
+    uint32_t total_samples;       // Cumulative successful samples since streaming started/reset
+    uint32_t dropped_samples;     // Failed sample reads / dropped acquisitions
+    uint32_t last_sample_time_ms; // Timestamp of last successful sample (milliseconds)
+    float actual_sps;             // Rolling measured sample rate over the latest update window
+    ErrorCode last_error;         // Last acquisition/configuration error encountered
 };
 
 //=============================================================================

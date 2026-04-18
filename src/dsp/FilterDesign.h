@@ -13,13 +13,13 @@
 #include "Biquad.h"
 #include "FilterCascade.h"
 
-namespace MindStreamer {
 namespace DSP {
 
 /**
  * @brief Helper: normalize frequency (Hz to normalized 0-0.5)
  */
 inline float normalizeFreq(float freq_hz, float sample_rate_hz) {
+    if (sample_rate_hz <= 0.0f) return 0.0f;
     return freq_hz / (sample_rate_hz * 0.5f);
 }
 
@@ -47,7 +47,7 @@ inline Biquad highpass0_5Hz(float sample_rate_hz) {
 }
 
 /**
- * @brief Band-pass for Alpha waves (8-13 Hz)
+ * @brief Approximate alpha-band centered band-pass (around 8-13 Hz)
  */
 inline Biquad bandpassAlpha(float sample_rate_hz) {
     float fc_low = normalizeFreq(8.0f, sample_rate_hz);
@@ -59,7 +59,7 @@ inline Biquad bandpassAlpha(float sample_rate_hz) {
 }
 
 /**
- * @brief Band-pass for Beta waves (13-30 Hz)
+ * @brief Approximate beta-band centered band-pass (around 13-30 Hz)
  */
 inline Biquad bandpassBeta(float sample_rate_hz) {
     float fc_low = normalizeFreq(13.0f, sample_rate_hz);
@@ -87,8 +87,15 @@ inline Biquad notch60Hz(float sample_rate_hz, float Q = 8.0f) {
 }
 
 /**
- * @brief Complete standard EEG filter (0.5-40 Hz bandpass + optional notch)
- * @return FilterCascade (4th order Butterworth)
+ * @brief Practical EEG preprocessing cascade: high-pass + low-pass + optional notch
+ *
+ * This is not a strict single Butterworth band-pass design. It is a practical
+ * cascade made of:
+ * - one 2nd-order high-pass stage near 0.5 Hz
+ * - two 2nd-order low-pass stages near 40 Hz
+ * - optional 50 Hz notch stage
+ *
+ * It is intended as a practical embedded EEG cleanup filter.
  */
 inline FilterCascade standardEEGFilter(float sample_rate_hz, bool include_notch = true) {
     FilterCascade cascade;
@@ -105,6 +112,5 @@ inline FilterCascade standardEEGFilter(float sample_rate_hz, bool include_notch 
 
 } // namespace EEGDesign
 } // namespace DSP
-} // namespace MindStreamer
 
 #endif // MINDSTREAMER_FILTER_DESIGN_H

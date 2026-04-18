@@ -13,21 +13,34 @@ void BinaryStreamer::begin() {
     // No initialization needed for binary mode
 }
 
-void BinaryStreamer::streamSample(uint32_t sample_counter, 
-                                   const uint8_t* status,
-                                   const int32_t* samples, 
-                                   uint8_t num_channels) {
-    uint8_t idx = 0;
-    
+void BinaryStreamer::streamSample(uint32_t sample_counter,
+                                  const uint8_t* status,
+                                  const int32_t* samples,
+                                  uint8_t num_channels) {
+    // Packet format:
+    // [0]   = header (0xBB)
+    // [1:4] = sample counter, little-endian
+    // [5:7] = 3-byte ADS1299 status
+    // [8..] = 3 bytes per channel, big-endian 24-bit sample
+    // [last]= footer (0xEE)
+
+    // Maximum payload supported by this fixed buffer
+    const uint16_t required_size = static_cast<uint16_t>(1 + 4 + 3 + (3 * num_channels) + 1);
+    if (required_size > sizeof(_buffer) || samples == nullptr) {
+        return;
+    }
+
+    uint16_t idx = 0;
+
     // Header
     _buffer[idx++] = MINDSTREAMER_PACKET_HEADER;
-    
+
     // Sample counter (4 bytes, little-endian)
-    _buffer[idx++] = (sample_counter >> 0) & 0xFF;
-    _buffer[idx++] = (sample_counter >> 8) & 0xFF;
-    _buffer[idx++] = (sample_counter >> 16) & 0xFF;
-    _buffer[idx++] = (sample_counter >> 24) & 0xFF;
-    
+    _buffer[idx++] = static_cast<uint8_t>((sample_counter >> 0) & 0xFF);
+    _buffer[idx++] = static_cast<uint8_t>((sample_counter >> 8) & 0xFF);
+    _buffer[idx++] = static_cast<uint8_t>((sample_counter >> 16) & 0xFF);
+    _buffer[idx++] = static_cast<uint8_t>((sample_counter >> 24) & 0xFF);
+
     // Status register (3 bytes)
     if (status) {
         _buffer[idx++] = status[0];
@@ -38,52 +51,57 @@ void BinaryStreamer::streamSample(uint32_t sample_counter,
         _buffer[idx++] = 0;
         _buffer[idx++] = 0;
     }
-    
-    // Channel data (3 bytes per channel, 24-bit, big-endian)
+
+    // Channel data: serialize the lower 24 bits in ADS1299 byte order (MSB first)
     for (uint8_t ch = 0; ch < num_channels; ch++) {
-        int32_t sample = samples[ch];
-        // Extract 24-bit value (discard upper 8 bits of sign-extended 32-bit)
-        uint32_t val = sample & 0x00FFFFFF;
-        _buffer[idx++] = (val >> 16) & 0xFF;
-        _buffer[idx++] = (val >> 8) & 0xFF;
-        _buffer[idx++] = val & 0xFF;
+        const uint32_t val = static_cast<uint32_t>(samples[ch]) & 0x00FFFFFFUL;
+        _buffer[idx++] = static_cast<uint8_t>((val >> 16) & 0xFF);
+        _buffer[idx++] = static_cast<uint8_t>((val >> 8) & 0xFF);
+        _buffer[idx++] = static_cast<uint8_t>(val & 0xFF);
     }
-    
+
     // Footer
     _buffer[idx++] = MINDSTREAMER_PACKET_FOOTER;
-    
-    // Send packet
+
     _output.write(_buffer, idx);
 }
 
 void BinaryStreamer::streamSingleChannel(uint32_t sample_counter,
                                          uint8_t channel,
                                          int32_t sample) {
-    uint8_t idx = 0;
-    
+    (void)channel;  // Channel index is not encoded in this compact packet format
+
+    const uint16_t required_size = 1 + 4 + 3 + 3 + 1;
+    if (required_size > sizeof(_buffer)) {
+        return;
+    }
+
+    uint16_t idx = 0;
+
     _buffer[idx++] = MINDSTREAMER_PACKET_HEADER;
-    
-    _buffer[idx++] = (sample_counter >> 0) & 0xFF;
-    _buffer[idx++] = (sample_counter >> 8) & 0xFF;
-    _buffer[idx++] = (sample_counter >> 16) & 0xFF;
-    _buffer[idx++] = (sample_counter >> 24) & 0xFF;
-    
-    // Status (dummy)
+
+    _buffer[idx++] = static_cast<uint8_t>((sample_counter >> 0) & 0xFF);
+    _buffer[idx++] = static_cast<uint8_t>((sample_counter >> 8) & 0xFF);
+    _buffer[idx++] = static_cast<uint8_t>((sample_counter >> 16) & 0xFF);
+    _buffer[idx++] = static_cast<uint8_t>((sample_counter >> 24) & 0xFF);
+
+    // Dummy 3-byte status
     _buffer[idx++] = 0;
     _buffer[idx++] = 0;
     _buffer[idx++] = 0;
-    
-    // Single channel
-    uint32_t val = sample & 0x00FFFFFF;
-    _buffer[idx++] = (val >> 16) & 0xFF;
-    _buffer[idx++] = (val >> 8) & 0xFF;
-    _buffer[idx++] = val & 0xFF;
-    
+
+    const uint32_t val = static_cast<uint32_t>(sample) & 0x00FFFFFFUL;
+    _buffer[idx++] = static_cast<uint8_t>((val >> 16) & 0xFF);
+    _buffer[idx++] = static_cast<uint8_t>((val >> 8) & 0xFF);
+    _buffer[idx++] = static_cast<uint8_t>(val & 0xFF);
+
     _buffer[idx++] = MINDSTREAMER_PACKET_FOOTER;
-    
+
     _output.write(_buffer, idx);
 }
 
 void BinaryStreamer::streamRegisterDump(const uint8_t* registers, uint8_t num_registers) {
-    // Not supported in binary mode – ignore
+    (void)registers;
+    (void)num_registers;
+    // Not supported in binary mode
 }

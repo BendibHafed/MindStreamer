@@ -16,11 +16,11 @@
 class MindStreamer {
 public:
     /**
-     * @brief Constructor with default pins
-     * @param drdy_pin Data ready pin (default: 16)
-     * @param cs_pin Chip select pin (default: 15)
-     * @param rst_pin Reset pin (default: 13)
-     */
+    * @brief Constructor with default ADS1299 control pins for DOIT ESP32 DEVKIT V1
+    * @param drdy_pin ADS1299 DRDY pin (default: GPIO12)
+    * @param cs_pin   ADS1299 CS pin (default: GPIO15)
+    * @param rst_pin  ADS1299 RESET pin (default: GPIO13)
+    */
     MindStreamer(int drdy_pin = 12, int cs_pin = 15, int rst_pin = 13);
     
     /**
@@ -32,6 +32,8 @@ public:
     // Lifecycle Methods
     //=========================================================================
     
+    bool debugReadFrameRaw(uint8_t* raw_bytes, uint8_t num_channels);
+
     /**
      * @brief Initialize MindStreamer with configuration
      * @param config Configuration structure
@@ -186,36 +188,8 @@ public:
      * @brief Print all register values (debug)
      */
     void printRegisterMap();
-    
-private:
-    // Pin assignments
-    int _drdy_pin;
-    int _cs_pin;
-    int _rst_pin;
-    
-    // Core components
-    ADS1299_SPI _spi;
-    MindStreamerConfig _config;
-    DataStreamer* _streamer;
-    
-    // State
-    bool _initialized;
-    bool _is_streaming;
-    ErrorCode _last_error;
-    MindStreamerStats _stats;
-    
-    // Data buffers
-    int32_t _samples[16];  // Support up to 16 channels
-    uint8_t _status[3];
-    uint32_t _sample_counter;
-    
-    // Internal methods
-    bool _configureDevice();
-    bool _verifyDevice();
-    void _updateStreamer();
-    float _convertToMicrovolts(int32_t raw_sample);
 
-        //=========================================================================
+    //=========================================================================
     // Advanced Channel Configuration
     //=========================================================================
     
@@ -256,7 +230,7 @@ private:
     /**
      * @brief Enable lead-off detection on a channel
      * @param channel Channel number (1-8)
-     * @param current_source Current source (0=off, 1=6nA, 2=12nA, 3=18nA, 4=24nA)
+     * @param current_source Current source (0=off, 1=6nA, 2=24nA, 3=6uA, 4=24uA)
      * @return true if successful
      */
     bool enableLeadOff(uint8_t channel, uint8_t current_source = 2);
@@ -278,10 +252,12 @@ private:
     bool readLeadOffStatus(uint8_t channel, bool& positive_off, bool& negative_off);
     
     /**
-     * @brief Measure electrode impedance (in kΩ)
+     * @brief Measure electrode impedance estimate (in kΩ)
      * @param channel Channel number (1-8)
-     * @param impedance_kohm Output impedance in kΩ
+     * @param impedance_kohm Output impedance estimate (in kΩ)
      * @return true if successful
+     * @note This uses one-time AC lead-off excitation and returns a practical
+     * estimate, not a calibrated clinical impedance measurement.
      */
     bool measureImpedance(uint8_t channel, float& impedance_kohm);
     
@@ -309,6 +285,40 @@ private:
      * @return true if successful
      */
     bool configureGlobalTestSignal(uint8_t source, uint8_t amplitude, uint8_t frequency);
+    
+private:
+    // Pin assignments
+    int _drdy_pin;
+    int _cs_pin;
+    int _rst_pin;
+    
+    // Core components
+    ADS1299_SPI _spi;
+    MindStreamerConfig _config;
+    DataStreamer* _streamer;
+    
+    // State
+    bool _initialized;
+    bool _is_streaming;
+    ErrorCode _last_error;
+    MindStreamerStats _stats;
+    
+    // Data buffers
+    int32_t _samples[16];  // Support up to 16 channels
+    uint8_t _status[3];
+    uint32_t _sample_counter;
+    
+    // SPS estimation state
+    uint32_t _sps_window_start_ms;
+    uint32_t _sps_window_samples;
+
+    // Internal methods
+    bool _configureDevice();
+    bool _verifyDevice();
+    void _updateStreamer();
+    float _convertToMicrovolts(int32_t raw_sample);
+    void _updateAcquisitionStats(bool success);
+
 };
 
 #endif // MINDSTREAMER_H

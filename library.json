@@ -1,0 +1,40 @@
+{
+  "name": "MindStreamer",
+  "version": "1.0.0",
+  "description": "ESP32 ADS1299 EEG acquisition library with DSP filtering and multiple output streamers.",
+  "keywords": [
+    "eeg",
+    "bci",
+    "ads1299",
+    "esp32",
+    "brain-computer-interface",
+    "biopotential",
+    "biosignal",
+    "signal-processing"
+  ],
+  "homepage": "https://github.com/yourname/MindStreamer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourname/MindStreamer.git"
+  },
+  "authors": [
+    {
+      "name": "Dr. Hafed-Eddine Bendib",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "frameworks": [
+    "arduino"
+  ],
+  "platforms": [
+    "espressif32"
+  ],
+  "build": {
+    "includeDir": "src",
+    "srcDir": "src"
+  },
+  "headers": [
+    "MindStreamer.h"
+  ]
+}

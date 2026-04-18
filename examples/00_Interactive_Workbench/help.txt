@@ -1,0 +1,34 @@
+============================================================
+MindStreamer Interactive Workbench
+Startup:
+  Press button on GPIO5 for default TEXT mode
+  Or send one of: X, B, W, D
+
+Streaming control:
+  X = text mode and start/resume
+  B = binary mode and start/resume
+  W = silent acquisition and start/resume
+  D = debug text mode and start/resume
+  S = stop streaming
+  R = resume current mode
+
+Channel control:
+  1..8 = disable channels 1..8
+  a z e r t y u i = enable channels 1..8
+
+Input routing and tests:
+  n = all channels normal input
+  q = all channels shorted
+  s = all channels internal test signal (1x, fCLK/2^21)
+  g = all channels internal test signal (2x, fCLK/2^21)
+
+Gain presets:
+  j = all channels gain 1
+  k = all channels gain 6
+  l = all channels gain 24
+
+Diagnostics:
+  0 = print register map
+  T = read temperature
+  P = print stats
+  H = print this help
