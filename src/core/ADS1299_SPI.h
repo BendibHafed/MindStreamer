@@ -13,6 +13,14 @@
 #include "../include/MindStreamer_Types.h"
 #include "ADS1299_Registers.h"
 
+/**
+ * Fixed SPI mapping for DOIT ESP32 DEVKIT V1:
+ * SCLK=18, MISO=19, MOSI=23
+ */
+#define MINDSTREAMER_SPI_SCLK  18
+#define MINDSTREAMER_SPI_MISO  19
+#define MINDSTREAMER_SPI_MOSI  23
+
 class ADS1299_SPI {
 public:
     /**
@@ -22,13 +30,16 @@ public:
      * @param rst_pin Reset pin
      */
     ADS1299_SPI(int drdy_pin, int cs_pin, int rst_pin);
+    ~ADS1299_SPI();
+
+    bool debugReadFrameRaw(uint8_t* raw_bytes, uint8_t num_channels);
     
     /**
      * @brief Initialize SPI interface and hardware pins
      * @param spi_clock_hz SPI clock frequency in Hz (max 2 MHz for ADS1299)
      * @return true if initialization successful
      */
-    bool begin(uint32_t spi_clock_hz = 1000000);
+    bool begin(uint32_t spi_clock_hz = 500000);
     
     /**
      * @brief Close SPI interface
@@ -63,7 +74,7 @@ public:
      * @return true if read successful
      */
     bool readRegisters(uint8_t start_addr, uint8_t count, uint8_t* values);
-    
+
     /**
      * @brief Write a single register
      * @param reg_addr Register address
@@ -125,6 +136,11 @@ public:
      * @param enable true for daisy chain, false for multiple readback
      */
     void setDaisyChainMode(bool enable);
+
+    /**
+     * @brief Query internal mode tracking
+     */
+    bool isContinuousReadMode() const { return _rdatac_mode; }
     
 private:
     int _drdy_pin;
@@ -133,12 +149,18 @@ private:
     SPIClass* _spi;
     uint32_t _spi_clock_hz;
     bool _initialized;
+    bool _rdatac_mode;
     ErrorCode _last_error;
-    
+
     void _selectChip();
     void _deselectChip();
     uint8_t _transfer(uint8_t data);
     bool _waitForDRDY(uint32_t timeout_ms);
+
+    void _delayCommandDecode() const;
+    void _delayResetRecovery() const;
+    bool _enterRegisterAccessMode(bool& restore_rdatac);
+    void _restoreReadMode(bool restore_rdatac);
 };
 
 #endif // MINDSTREAMER_ADS1299_SPI_H

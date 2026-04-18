@@ -10,6 +10,11 @@
 
 #include "DataStreamer.h"
 
+/**
+ * @brief Stream a single-channel sample in compact binary form
+ * @note The channel argument is accepted for API consistency but is not
+ * encoded in the binary packet format.
+ */
 class BinaryStreamer : public DataStreamer {
 public:
     BinaryStreamer(Stream& output = Serial);

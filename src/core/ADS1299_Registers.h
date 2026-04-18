@@ -19,6 +19,14 @@
 // Read-only ID register
 #define ADS1299_REG_ID           0x00
 
+#define ADS1299_ID_BIT4_MASK       0x10
+#define ADS1299_ID_DEVID_MASK      0x0C
+#define ADS1299_ID_NUMCH_MASK      0x03
+
+#define ADS1299_ID_BIT4_EXPECTED   0x10
+#define ADS1299_ID_DEVID_EXPECTED  0x0C   // DEV_ID = 0b11
+#define ADS1299_ID_NUMCH_8CH       0x02   // NU_CH = 0b10
+
 // Global settings registers
 #define ADS1299_REG_CONFIG1      0x01
 #define ADS1299_REG_CONFIG2      0x02
@@ -66,7 +74,7 @@
 #define ADS1299_CMD_STOP         0x0A   // Stop conversions
 
 //=============================================================================
-// Data Read Commands (Datasheet p.40-41)
+// Data Read Commands (Datasheet p.40-42)
 //=============================================================================
 
 #define ADS1299_CMD_RDATAC       0x10   // Read data continuous mode
@@ -74,7 +82,7 @@
 #define ADS1299_CMD_RDATA        0x12   // Read data by command
 
 //=============================================================================
-// Register Read/Write Commands (Datasheet p.42-43)
+// Register Read/Write Commands (Datasheet p.43)
 //=============================================================================
 
 #define ADS1299_CMD_RREG         0x20   // Read register (OR with address)
@@ -93,12 +101,14 @@
 #define ADS1299_CONFIG1_DR_8000  0x01   // 8000 SPS
 #define ADS1299_CONFIG1_DR_16000 0x00   // 16000 SPS
 
+#define ADS1299_CONFIG1_RESERVED 0x90   // Reset-required reserved bits
 #define ADS1299_CONFIG1_DAISY_EN 0x40   // Daisy-chain mode enable (bit 6)
 
 //=============================================================================
 // CONFIG2 Register Bits (Address 0x02)
 //=============================================================================
 
+#define ADS1299_CONFIG2_RESERVED      0xC0   // Reserved bits must remain set
 #define ADS1299_CONFIG2_TEST_SIG_SRC  0x10   // Test signal source (1=internal, 0=external)
 #define ADS1299_CONFIG2_TEST_SIG_AMP  0x04   // Test signal amplitude (1=2x, 0=1x)
 #define ADS1299_CONFIG2_TEST_SIG_FREQ 0x03   // Test signal frequency mask
@@ -112,12 +122,42 @@
 // CONFIG3 Register Bits (Address 0x03)
 //=============================================================================
 
-#define ADS1299_CONFIG3_PDB_REFBUF    0x80   // Power-down reference buffer (1=power down)
-#define ADS1299_CONFIG3_BIAS_REF_INT  0x08   // Internal BIASREF enable (1=internal)
-#define ADS1299_CONFIG3_BIAS_BUFFER   0x04   // BIAS buffer power (1=power on)
-#define ADS1299_CONFIG3_BIAS_MEAS     0x10   // BIAS measurement enable
-#define ADS1299_CONFIG3_BIAS_SENS     0x02   // BIAS sense enable
-#define ADS1299_CONFIG3_BIAS_LOFF_SENS 0x01  // BIAS lead-off sense
+#define ADS1299_CONFIG3_REFBUF_EN 	   0x80   // CONFIG3 bit 7: internal reference buffer enable
+#define ADS1299_CONFIG3_BIAS_REF_INT   0x08   // Internal BIASREF enable (1=internal)
+#define ADS1299_CONFIG3_BIAS_BUFFER    0x04   // BIAS buffer power (1=power on)
+#define ADS1299_CONFIG3_BIAS_MEAS      0x10   // BIAS measurement enable
+#define ADS1299_CONFIG3_BIAS_SENS      0x02   // BIAS sense enable
+#define ADS1299_CONFIG3_BIAS_LOFF_SENS 0x01   // BIAS lead-off sense
+
+//=============================================================================
+// LOFF Register Bits
+//=============================================================================
+
+// Bits 7:5 = COMP_TH[2:0], comparator threshold
+#define ADS1299_LOFF_COMP_TH_MASK      0xE0
+
+// Bits 4:2 = ILEAD_OFF[1:0] and FLEAD_OFF[1:0] combined control field region
+// We keep separate masks here for clean writes in higher-level code.
+#define ADS1299_LOFF_ILEAD_OFF_MASK    0x0C   // bits 3:2
+#define ADS1299_LOFF_FLEAD_OFF_MASK    0x03   // bits 1:0
+
+// Lead-off current settings from datasheet
+#define ADS1299_LOFF_ILEAD_6NA         0x00
+#define ADS1299_LOFF_ILEAD_24NA        0x04
+#define ADS1299_LOFF_ILEAD_6UA         0x08
+#define ADS1299_LOFF_ILEAD_24UA        0x0C
+
+// Lead-off frequency settings
+// Datasheet LOFF[1:0]:
+// 00 = DC
+// 01 = AC at 7.8 Hz (fCLK / 2^18)
+// 10 = AC at 31.2 Hz (fCLK / 2^16)
+// 11 = AC at fDR / 4
+// Lead-off frequency settings
+#define ADS1299_LOFF_FREQ_DC           0x00
+#define ADS1299_LOFF_FREQ_7P8HZ        0x01
+#define ADS1299_LOFF_FREQ_31P2HZ       0x02
+#define ADS1299_LOFF_FREQ_AC_FDR_DIV4  0x03
 
 //=============================================================================
 // CHnSET Register Bits (Addresses 0x05-0x0C)
@@ -157,36 +197,38 @@
 // CONFIG4 Register Bits (Address 0x17)
 //=============================================================================
 
-#define ADS1299_CONFIG4_SINGLE_SHOT  0x08   // Single-shot mode (1=enabled)
+#define ADS1299_CONFIG4_SINGLE_SHOT    0x08   // Single-shot mode (1=enabled)
+#define ADS1299_CONFIG4_PD_LOFF_COMP   0x02
 
 //=============================================================================
-// Default Register Values (Datasheet p.45-48)
+// MindStreamer Packet Constants
 //=============================================================================
 
-#define ADS1299_DEFAULT_ID          0x3E   // Expected device ID
-#define ADS1299_DEFAULT_CONFIG1     0x96   // 250 SPS, daisy-chain disabled
-#define ADS1299_DEFAULT_CONFIG2     0xC0   // Test signals off
-#define ADS1299_DEFAULT_CONFIG3     0xEC   // Internal ref, BIAS on
-#define ADS1299_DEFAULT_CONFIG4     0x00   // Continuous mode
-#define ADS1299_DEFAULT_CHnSET      0x60   // Gain=6, normal input, channel on
-#define ADS1299_DEFAULT_MISC1       0x00   // SRB1 off
+#define MINDSTREAMER_PACKET_HEADER     0xBB
+#define MINDSTREAMER_PACKET_FOOTER     0xEE
 
 //=============================================================================
-// Packet Format Constants
+// Data Frame Constants
 //=============================================================================
 
-#define MINDSTREAMER_PACKET_HEADER  0xBB   // Binary packet header
-#define MINDSTREAMER_PACKET_FOOTER  0xEE   // Binary packet footer
-#define ADS1299_STATUS_BYTES        3      // Status register bytes
-#define ADS1299_CHANNEL_BYTES       3      // Bytes per channel (24-bit)
+#define ADS1299_STATUS_BYTES           3
+#define ADS1299_CHANNEL_BYTES          3
 
 //=============================================================================
 // Timing Constants (in microseconds)
 //=============================================================================
 
-#define ADS1299_T_POR_US            1000   // Power-on reset time (1 ms)
-#define ADS1299_T_RST_US            2      // Reset pulse width (2 μs)
-#define ADS1299_T_START_US          18     // Start command delay (18 μs)
-#define ADS1299_T_SDECODE_US        4      // Command decode time (4 μs)
+// Minimum RESET low pulse width (datasheet uses tRST >= 2 tCLK).
+// We keep a conservative value.
+#define ADS1299_T_RST_US               10
+
+// Delay after RESET before issuing more commands.
+// Datasheet requires 18 tCLK; we use a conservative fixed delay.
+#define ADS1299_T_RESET_RECOVERY_US    20
+
+// Multi-byte command decode spacing.
+// Datasheet: 4 tCLK; at 2.048 MHz this is about 1.96 us.
+// Use 2 us minimum, rounded upward.
+#define ADS1299_T_SDECODE_US           2
 
 #endif // MINDSTREAMER_ADS1299_REGISTERS_H

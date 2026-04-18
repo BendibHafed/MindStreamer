@@ -11,7 +11,6 @@
 #include "FilterCascade.h"
 #include <vector>
 
-namespace MindStreamer {
 namespace DSP {
 
 /**
@@ -42,6 +41,8 @@ public:
      * @param outputs Array for output samples (size = num_channels)
      */
     void process(const float* inputs, float* outputs) noexcept {
+        if (!inputs || !outputs) return;
+
         for (uint8_t ch = 0; ch < _num_channels; ++ch) {
             if (_enabled[ch]) {
                 outputs[ch] = _filters[ch].process(inputs[ch]);
@@ -58,9 +59,11 @@ public:
      * @param num_samples Number of samples per channel
      */
     void processBlock(const float* inputs, float* outputs, size_t num_samples) noexcept {
+        if (!inputs || !outputs) return;
+
         for (size_t i = 0; i < num_samples; ++i) {
             for (uint8_t ch = 0; ch < _num_channels; ++ch) {
-                size_t idx = i * _num_channels + ch;
+                const size_t idx = i * _num_channels + ch;
                 if (_enabled[ch]) {
                     outputs[idx] = _filters[ch].process(inputs[idx]);
                 } else {
@@ -92,6 +95,5 @@ private:
 };
 
 } // namespace DSP
-} // namespace MindStreamer
 
 #endif // MINDSTREAMER_FILTER_BANK_H
