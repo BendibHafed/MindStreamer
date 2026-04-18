@@ -1,6 +1,4 @@
 # MindStreamer
-A clean, modern, production-ready library for EEG acquisition using ESP32 and ADS1299 analog front-end.
-# MindStreamer
 
 MindStreamer is an Arduino/ESP32 library for EEG acquisition with the **ADS1299** biopotential front end. It focuses on a clean acquisition lifecycle, explicit device configuration, multiple output formats, and practical validation tools for bring-up, debugging, and host-side integration.
 
